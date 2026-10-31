@@ -1,0 +1,35 @@
+---
+import { render } from 'astro:content';
+import Base from '../../layouts/Base.astro';
+import { SITE } from '../../site';
+import { getPosts, formatDate } from '../../posts';
+
+export async function getStaticPaths() {
+  const posts = await getPosts();
+  return posts.map((post) => ({ params: { slug: post.id }, props: { post } }));
+}
+
+const { post } = Astro.props;
+const { Content } = await render(post);
+const { title, description, date, updated } = post.data;
+const url = new URL(Astro.url.pathname, SITE.url).href;
+const jsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'BlogPosting',
+  headline: title,
+  description,
+  inLanguage: 'tr',
+  datePublished: date.toISOString(),
+  dateModified: (updated ?? date).toISOString(),
+  mainEntityOfPage: url,
+  url,
+  author: { '@type': 'Person', name: SITE.name, url: `${SITE.url}/` },
+};
+---
+<Base title={title} description={description} type="article" jsonLd={jsonLd} published={date} modified={updated ?? date}>
+  <article>
+    <h1>{title}</h1>
+    <time datetime={date.toISOString()}>{formatDate(date)}</time>
+    <Content />
+  </article>
+</Base>

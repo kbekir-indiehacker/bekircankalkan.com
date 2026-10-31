@@ -1,0 +1,98 @@
+---
+import Base from '../layouts/Base.astro';
+import { SITE } from '../site';
+import { getPosts, formatDate } from '../posts';
+
+const posts = await getPosts();
+const jsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'WebSite',
+  name: SITE.name,
+  url: `${SITE.url}/`,
+  inLanguage: 'tr',
+  author: { '@type': 'Person', name: SITE.name, url: `${SITE.url}/` },
+};
+---
+<Base jsonLd={jsonLd}>
+  <h1 class="sr">{SITE.name}</h1>
+  <form id="search" role="search" action="/" method="get">
+    <input id="q" name="q" type="search" placeholder="Yazılarda ara" aria-label="Yazılarda ara" autocomplete="off" />
+  </form>
+  <div id="results" aria-live="polite" hidden></div>
+  <div id="list">
+    {posts.length === 0 && <p class="muted">Henüz yazı yok.</p>}
+    {posts.map((post) => (
+      <article>
+        <h2><a href={`/yazilar/${post.id}/`}>{post.data.title}</a></h2>
+        <time datetime={post.data.date.toISOString()}>{formatDate(post.data.date)}</time>
+      </article>
+    ))}
+  </div>
+</Base>
+
+<style is:global>
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+  #search { margin-bottom: 2.5rem; }
+  #q {
+    width: 100%; padding: .6rem .8rem; font: inherit; color: inherit;
+    background: transparent; border: 1px solid var(--line); border-radius: 6px;
+  }
+  #list article, #results article { margin-bottom: 1.75rem; }
+  #list h2, #results h2 { font-size: 1.3rem; margin: 0; font-weight: 500; }
+  #list h2 a, #results h2 a { color: var(--heading); text-decoration: none; }
+  #list h2 a:hover, #results h2 a:hover { color: var(--link); }
+  #results p { margin: .25rem 0 0; font-size: 1rem; color: var(--muted); }
+  #results mark { background: var(--mark); color: inherit; }
+</style>
+
+<script is:inline type="module">
+  import { prepare, search } from '/search.js';
+
+  const input = document.getElementById('q');
+  const results = document.getElementById('results');
+  const list = document.getElementById('list');
+  document.getElementById('search').addEventListener('submit', (e) => e.preventDefault());
+
+  let indexPromise;
+  const load = () => {
+    indexPromise ??= fetch('/search.json')
+      .then((r) => { if (!r.ok) throw new Error(); return r.json(); })
+      .then(prepare)
+      .catch((e) => { indexPromise = undefined; throw e; });
+    return indexPromise;
+  };
+
+  const esc = (s) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+
+  let run = 0;
+  async function update(raw) {
+    const current = ++run;
+    const q = raw.trim();
+    const url = new URL(location.href);
+    q ? url.searchParams.set('q', q) : url.searchParams.delete('q');
+    history.replaceState(null, '', url);
+    if (!q) {
+      results.hidden = true;
+      list.hidden = false;
+      return;
+    }
+    let html;
+    try {
+      const items = search(await load(), q);
+      html = items.length
+        ? items.map((i) => `<article><h2><a href="${esc(i.url)}">${esc(i.title)}</a></h2><p>${i.excerpt}</p></article>`).join('')
+        : '<p>Sonuç bulunamadı.</p>';
+    } catch {
+      html = '<p>Arama şu anda çalışmıyor.</p>';
+    }
+    if (current !== run) return;
+    results.innerHTML = html;
+    results.hidden = false;
+    list.hidden = true;
+  }
+
+  input.addEventListener('focus', () => load().catch(() => {}), { once: true });
+  input.addEventListener('input', () => update(input.value));
+  const initial = new URLSearchParams(location.search).get('q');
+  if (initial) { input.value = initial; update(initial); }
+</script>
