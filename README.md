@@ -7,3 +7,5 @@ Dosya adı adresi belirler (`benim-yazim.md` → `/yazilar/benim-yazim/`).
 - `npm run build`: `dist/` klasörüne site çıktısı
 
 Site adı ve açıklaması `src/site.ts` dosyasında.
+
+Yayın: Cloudflare Pages (`bekircankalkan` projesi, Direct Upload). `git push` siteyi güncellemez; `npm run build` sonrası `dist/` Cloudflare'e yüklenir.
